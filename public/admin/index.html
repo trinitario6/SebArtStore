@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel 🛸</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛸</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <style>
+    .sales-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+    .sales-table th { text-align:left; padding:10px 12px; color:var(--text-soft); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--card-border); }
+    .sales-table td { padding:12px; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:top; }
+    .sales-table tr:last-child td { border-bottom:none; }
+    .sales-table tr:hover td { background:rgba(255,255,255,0.02); }
+    .sales-status-sold { display:inline-block; background:rgba(255,82,82,0.15); color:#ff8a80; border:1px solid rgba(255,82,82,0.3); padding:2px 10px; border-radius:20px; font-size:0.75rem; font-weight:800; }
+    .sales-status-avail { display:inline-block; background:rgba(105,240,174,0.12); color:var(--planet-green); border:1px solid rgba(105,240,174,0.25); padding:2px 10px; border-radius:20px; font-size:0.75rem; font-weight:800; }
+    .contact-chip { background:rgba(64,224,208,0.1); border:1px solid rgba(64,224,208,0.25); color:var(--comet-cyan); padding:2px 10px; border-radius:20px; font-size:0.8rem; display:inline-block; }
+    .mark-delivered-btn { background:rgba(105,240,174,0.12); border:1px solid rgba(105,240,174,0.3); color:var(--planet-green); padding:4px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .mark-delivered-btn:hover { background:rgba(105,240,174,0.2); }
+    .delivered-badge { color:var(--planet-green); font-size:0.8rem; font-weight:700; }
+    .admin-section-desc { color:var(--text-soft); font-size:0.88rem; margin-bottom:20px; }
+  </style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<!-- LOGIN -->
+<div class="admin-login" id="login-screen">
+  <div class="login-card">
+    <div class="login-icon">🛸</div>
+    <h1 class="login-title">Admin Access</h1>
+    <p class="login-sub">Enter the secret code to continue</p>
+    <input type="password" id="password-input" class="form-input" placeholder="Secret password…"/>
+    <button class="btn-primary btn-full" id="login-btn">Enter Mission Control 🚀</button>
+    <p class="login-hint">Hint: think space! 🌌</p>
+    <p id="login-error" class="login-error" style="display:none">❌ Wrong password! Try again.</p>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="admin-panel" style="display:none">
+  <nav class="navbar">
+    <a href="../index.html" class="nav-logo">🚀 Sebastian's Art</a>
+    <div class="nav-links">
+      <a href="../index.html" class="nav-link">← Gallery</a>
+      <span class="nav-link admin-badge">🛸 Admin</span>
+      <a href="#" id="logout-btn" class="nav-link">Logout</a>
+    </div>
+  </nav>
+  <main class="admin-main">
+    <div class="admin-header">
+      <h1 class="admin-title">🛸 Mission Control</h1>
+      <p class="admin-sub">Manage Sebastian's space art gallery — changes are live instantly!</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="admin-stats">
+      <div class="admin-stat-card"><span class="admin-stat-num" id="a-art-count">…</span><span class="admin-stat-label">Artworks</span></div>
+      <div class="admin-stat-card"><span class="admin-stat-num" id="a-sold-count">…</span><span class="admin-stat-label">Sold</span></div>
+      <div class="admin-stat-card"><span class="admin-stat-num" id="a-earned">…</span><span class="admin-stat-label">Earned</span></div>
+      <div class="admin-stat-card"><span class="admin-stat-num" id="a-progress">…</span><span class="admin-stat-label">To Goal</span></div>
+    </div>
+
+    <!-- SALES TABLE -->
+    <div class="admin-section">
+      <h2 class="admin-section-title">📦 Sales & Delivery</h2>
+      <p class="admin-section-desc">All sold artworks — who bought them, how to contact them, and how much to collect.</p>
+      <div id="sales-table-container">
+        <div class="gallery-loading"><div class="loading-spinner"></div><p>Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- Goal -->
+    <div class="admin-section">
+      <h2 class="admin-section-title">🎯 Mission Goal</h2>
+      <p class="admin-section-desc">Set the pledge target shown on the progress bar.</p>
+      <div class="goal-editor">
+        <div class="goal-display"><span class="goal-current-label">Current goal:</span><span class="goal-current-val" id="goal-current-display">$200</span></div>
+        <div class="goal-input-row">
+          <span class="goal-dollar">$</span>
+          <input type="number" id="goal-input" class="form-input goal-input" placeholder="200" min="1" max="99999"/>
+          <button class="btn-primary" id="save-goal-btn">🚀 Update Goal</button>
+        </div>
+        <p id="goal-msg" class="form-msg" style="display:none"></p>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="admin-section">
+      <h2 class="admin-section-title">👨‍🚀 About Me Page</h2>
+      <p class="admin-section-desc">Edit what visitors see on the About page.</p>
+      <div class="add-art-form">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Artist Name</label><input type="text" id="about-name" class="form-input" placeholder="Sebastian" maxlength="40"/></div>
+          <div class="form-group"><label class="form-label">Tagline</label><input type="text" id="about-tagline" class="form-input" placeholder="Space Explorer · Dreamer · Artist" maxlength="80"/></div>
+        </div>
+        <p class="form-label" style="margin-bottom:12px">Story Cards</p>
+        <div id="about-cards-editor" class="about-cards-editor"></div>
+        <div class="form-group"><label class="form-label">Mission Callout Text</label><textarea id="about-mission-text" class="form-input form-textarea" rows="3" placeholder="Right now I can only share my art online…"></textarea></div>
+        <div class="form-group"><label class="form-label">Thank You Message</label><textarea id="about-thankyou" class="form-input form-textarea" rows="3" placeholder="Every person who looks at my art…"></textarea></div>
+        <div class="form-group"><label class="form-label">Sign-off</label><input type="text" id="about-sig" class="form-input" placeholder="— Sebastian 🚀" maxlength="60"/></div>
+        <div class="form-actions">
+          <button class="btn-primary" id="save-about-btn">🌟 Save About Page</button>
+          <a href="../about.html" target="_blank" class="btn-secondary">Preview →</a>
+        </div>
+        <p id="about-msg" class="form-msg" style="display:none"></p>
+      </div>
+    </div>
+
+    <!-- Add Artwork -->
+    <div class="admin-section">
+      <h2 class="admin-section-title">🎨 Add New Artwork</h2>
+      <div class="add-art-form">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Title *</label><input type="text" id="art-title" class="form-input" placeholder="e.g. Nebula Dreams" maxlength="60"/></div>
+          <div class="form-group"><label class="form-label">Price ($) *</label><input type="number" id="art-price" class="form-input" placeholder="10" min="1" max="999"/></div>
+        </div>
+        <div class="form-group"><label class="form-label">Description *</label><textarea id="art-desc" class="form-input form-textarea" placeholder="Tell the world about this artwork…"></textarea></div>
+        <div class="form-group"><label class="form-label">Emoji Icon</label><input type="text" id="art-emoji" class="form-input" placeholder="🌌" maxlength="4"/></div>
+        <div class="form-group">
+          <label class="form-label">Artwork Image</label>
+          <div class="upload-area" id="upload-area" onclick="document.getElementById('art-image').click()">
+            <input type="file" id="art-image" accept="image/*" style="display:none"/>
+            <div class="upload-placeholder" id="upload-placeholder"><span class="upload-icon">📸</span><p>Click to upload image</p><small>JPG, PNG, GIF, WEBP</small></div>
+            <img id="image-preview" src="" alt="" style="display:none;max-height:200px;border-radius:12px;"/>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" id="save-art-btn">🚀 Launch Artwork</button>
+          <button class="btn-secondary" id="clear-form-btn">Clear</button>
+        </div>
+        <p id="form-msg" class="form-msg" style="display:none"></p>
+      </div>
+    </div>
+
+    <!-- All Artworks -->
+    <div class="admin-section">
+      <h2 class="admin-section-title">🖼️ All Artworks</h2>
+      <div id="admin-art-list" class="admin-art-list">
+        <div class="gallery-loading"><div class="loading-spinner"></div><p>Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="admin-section danger-zone">
+      <h2 class="admin-section-title">⚠️ Danger Zone</h2>
+      <p>Actions here affect ALL visitors.</p>
+      <div style="margin-bottom:16px">
+        <button class="btn-secondary" id="test-write-btn">🧪 Test Firestore Write</button>
+        <p id="test-write-msg" style="margin-top:8px;font-size:0.9rem;display:none"></p>
+      </div>
+      <button class="btn-danger" id="reset-btn">🗑️ Reset All Artworks &amp; Sales</button>
+    </div>
+  </main>
+</div>
+
+<script>
+var FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBJus0fO1qbIyGYjm3xAyno93mLj8B86zg",
+  authDomain:"sebify-87bf5.firebaseapp.com",
+  projectId:"sebify-87bf5",
+  storageBucket:"sebify-87bf5.firebasestorage.app",
+  messagingSenderId:"1028317310503",
+  appId:"1:1028317310503:web:c06cf377b0a110bf2fe802"
+};
+var ADMIN_PASSWORD = "space2020";
+var GOAL_DEFAULT = 200;
+var ABOUT_DEFAULTS = {
+  name:"Sebastian", tagline:"Space Explorer · Dreamer · Artist",
+  missionText:"Right now I can only share my art online, but my dream is to print it out and give it to people! Every time someone pledges to buy one of my artworks, I get closer to that goal. Will you help me launch?",
+  thankYou:"Every person who looks at my art makes me so happy. Whether you pledge or just browse, you're part of my mission to the stars. Thank you from the bottom of my space-loving heart! 💙",
+  signature:"— Sebastian 🚀",
+  cards:[
+    {icon:"🎨",title:"My Art",text:"I love to paint and draw more than almost anything! My favorite things to draw are planets, rockets, aliens, and all the cool things that might be out there in space."},
+    {icon:"🚀",title:"Why Space?",text:"Space is SO cool because it's the biggest thing there is — and nobody has seen all of it! I like to imagine what other planets look like and whether aliens are friendly."},
+    {icon:"💡",title:"The Big Idea",text:"I started this gallery to share my art with the whole universe! My dream is to save up enough pledges to buy a color printer so I can print my artwork and share it with people."},
+    {icon:"🌠",title:"Fun Facts",text:"⭐ My favorite planet is Saturn\n⭐ I've watched every space documentary I can find\n⭐ I want to be an astronaut AND an artist\n⭐ I draw at least one picture every single day\n⭐ My lucky color is galaxy blue"}
+  ]
+};
+
+firebase.initializeApp(FIREBASE_CONFIG);
+var db = firebase.firestore();
+var storage = firebase.storage();
+var currentGoal = GOAL_DEFAULT;
+var selectedFile = null;
+
+// Stars
+var sc=document.getElementById("stars");
+for(var i=0;i<150;i++){var s=document.createElement("div");s.className="star";s.style.cssText="left:"+Math.random()*100+"%;top:"+Math.random()*100+"%;width:"+(Math.random()*3+1)+"px;height:"+(Math.random()*3+1)+"px;animation-delay:"+Math.random()*3+"s;animation-duration:"+(Math.random()*2+2)+"s";sc.appendChild(s);}
+
+// Login
+document.getElementById("login-btn").addEventListener("click", tryLogin);
+document.getElementById("password-input").addEventListener("keypress", function(e){if(e.key==="Enter")tryLogin();});
+
+function tryLogin(){
+  if(document.getElementById("password-input").value === ADMIN_PASSWORD){
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("admin-panel").style.display="block";
+    bootAdmin();
+  } else {
+    document.getElementById("login-error").style.display="block";
+  }
+}
+
+document.getElementById("logout-btn").addEventListener("click", function(){
+  document.getElementById("admin-panel").style.display="none";
+  document.getElementById("login-screen").style.display="flex";
+  document.getElementById("password-input").value="";
+});
+
+function bootAdmin(){
+  // Live stats
+  db.doc("stats/global").onSnapshot(function(snap){
+    var d=snap.exists?snap.data():{totalPledged:0,backerCount:0};
+    var pct=Math.min(100,Math.round(((d.totalPledged||0)/currentGoal)*100));
+    document.getElementById("a-earned").textContent="$"+(d.totalPledged||0).toFixed(0);
+    document.getElementById("a-progress").textContent=pct+"%";
+  });
+
+  // Live goal
+  db.doc("settings/config").onSnapshot(function(snap){
+    currentGoal=(snap.exists&&snap.data().goal)?snap.data().goal:GOAL_DEFAULT;
+    document.getElementById("goal-current-display").textContent="$"+currentGoal;
+    document.getElementById("goal-input").value=currentGoal;
+  });
+
+  // Live artworks
+  db.collection("artworks").onSnapshot(function(snap){
+    var arts=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+    var sold=arts.filter(function(a){return a.sold;});
+    document.getElementById("a-art-count").textContent=arts.length;
+    document.getElementById("a-sold-count").textContent=sold.length;
+    renderArtList(arts);
+  });
+
+  // Live sales table
+  db.collection("pledges").onSnapshot(function(snap){
+    var sales=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).sort(function(a,b){return b.id.localeCompare(a.id);});
+    renderSalesTable(sales);
+  });
+
+  // Load about
+  db.doc("settings/about").get().then(function(snap){
+    var d=snap.exists?Object.assign({},ABOUT_DEFAULTS,snap.data()):ABOUT_DEFAULTS;
+    populateAboutForm(d);
+  });
+  renderCardEditors(ABOUT_DEFAULTS.cards);
+}
+
+// Sales table
+function renderSalesTable(sales){
+  var c=document.getElementById("sales-table-container");
+  if(!sales.length){c.innerHTML='<p class="empty-hint">No sales yet — share the gallery!</p>';return;}
+  var rows=sales.map(function(s){
+    var date="";
+    if(s.createdAt&&s.createdAt.toDate){date=s.createdAt.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+    return '<tr>'
+      +'<td><strong>'+esc(s.artTitle||"Unknown")+'</strong></td>'
+      +'<td><span class="goal-current-val" style="font-size:1rem">$'+esc(String(s.amount||0))+'</span></td>'
+      +'<td><strong>'+esc(s.name||"Unknown")+'</strong></td>'
+      +'<td><span class="contact-chip">'+esc(s.contact||"—")+'</span></td>'
+      +'<td>'+(s.comment?'<em style="color:var(--text-soft);font-size:0.82rem">"'+esc(s.comment)+'"</em>':"—")+'</td>'
+      +'<td>'
+        +(s.delivered
+          ?'<span class="delivered-badge">✅ Delivered</span>'
+          :'<button class="mark-delivered-btn" onclick="markDelivered(\''+s.id+'\',this)">Mark Delivered</button>')
+      +'</td>'
+      +'<td style="color:var(--text-soft);font-size:0.8rem">'+date+'</td>'
+      +'<td>'
+        +'<button class="btn-danger btn-sm" onclick="resetSale(\''+s.id+'\',\''+esc(s.artId)+'\',\''+esc(String(s.amount||0))+'\',this)" title="Remove this sale and make artwork available again">↩ Reset</button>'
+      +'</td>'
+      +'</tr>';
+  }).join("");
+  c.innerHTML='<div style="overflow-x:auto"><table class="sales-table">'
+    +'<thead><tr><th>Artwork</th><th>Price</th><th>Buyer</th><th>Contact</th><th>Message</th><th>Delivery</th><th>Date</th><th>Action</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
+}
+
+function markDelivered(id, btn){
+  btn.disabled=true; btn.textContent="Saving…";
+  db.collection("pledges").doc(id).update({delivered:true}).catch(function(e){
+    btn.disabled=false; btn.textContent="Mark Delivered";
+    alert("Error: "+e.message);
+  });
+}
+
+function resetSale(pledgeId, artId, amount, btn){
+  if(!confirm("Reset this sale? The artwork will be marked as available again and the sale record deleted."))return;
+  btn.disabled=true; btn.textContent="…";
+  var ops = [];
+  // Delete the sale record
+  ops.push(db.collection("pledges").doc(pledgeId).delete());
+  // Mark artwork as available again
+  if(artId){
+    ops.push(db.collection("artworks").doc(artId).update({sold:false, soldTo:null, soldContact:null, soldAt:null}));
+  }
+  // Subtract from stats
+  var amt = parseFloat(amount)||0;
+  if(amt>0){
+    ops.push(db.doc("stats/global").update({
+      totalPledged: firebase.firestore.FieldValue.increment(-amt),
+      backerCount:  firebase.firestore.FieldValue.increment(-1)
+    }));
+  }
+  Promise.all(ops)
+    .then(function(){/* table will update via onSnapshot */})
+    .catch(function(e){
+      btn.disabled=false; btn.textContent="↩ Reset";
+      alert("Reset failed: "+e.message);
+    });
+}
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+// Goal
+document.getElementById("save-goal-btn").addEventListener("click", function(){
+  var val=parseFloat(document.getElementById("goal-input").value);
+  if(!val||val<1){showMsg("goal-msg","Please enter a valid goal!","error");return;}
+  var btn=document.getElementById("save-goal-btn");
+  btn.disabled=true; btn.textContent="Saving…";
+  db.doc("settings/config").set({goal:val},{merge:true})
+    .then(function(){showMsg("goal-msg","✅ Goal updated to $"+val,"success");})
+    .catch(function(e){showMsg("goal-msg","Error: "+e.message,"error");})
+    .finally(function(){btn.disabled=false; btn.textContent="🚀 Update Goal";});
+});
+
+// About card editors
+function renderCardEditors(cards){
+  document.getElementById("about-cards-editor").innerHTML=cards.map(function(c,i){
+    return '<div class="card-editor">'
+      +'<div class="card-editor-header">'
+      +'<span class="card-editor-num">Card '+(i+1)+'</span>'
+      +'<input type="text" id="card-icon-'+i+'" class="form-input card-icon-input" value="'+esc(c.icon||"⭐")+'" maxlength="4" placeholder="🌟"/>'
+      +'<input type="text" id="card-title-'+i+'" class="form-input card-title-input" value="'+esc(c.title||"")+'" maxlength="40" placeholder="Title"/>'
+      +'</div>'
+      +'<textarea id="card-text-'+i+'" class="form-input form-textarea card-text-input" rows="3" placeholder="Card content…">'+esc(c.text||"")+'</textarea>'
+      +'</div>';
+  }).join("");
+}
+
+function populateAboutForm(d){
+  document.getElementById("about-name").value=d.name||"";
+  document.getElementById("about-tagline").value=d.tagline||"";
+  document.getElementById("about-mission-text").value=d.missionText||"";
+  document.getElementById("about-thankyou").value=d.thankYou||"";
+  document.getElementById("about-sig").value=d.signature||"";
+  renderCardEditors((d.cards&&d.cards.length===4)?d.cards:ABOUT_DEFAULTS.cards);
+}
+
+function getCardValues(){
+  return [0,1,2,3].map(function(i){return {
+    icon:(document.getElementById("card-icon-"+i)||{value:"⭐"}).value.trim()||"⭐",
+    title:(document.getElementById("card-title-"+i)||{value:""}).value.trim(),
+    text:(document.getElementById("card-text-"+i)||{value:""}).value.trim()
+  };});
+}
+
+document.getElementById("save-about-btn").addEventListener("click", function(){
+  var btn=document.getElementById("save-about-btn");
+  btn.disabled=true; btn.textContent="Saving…";
+  var data={
+    name:document.getElementById("about-name").value.trim()||ABOUT_DEFAULTS.name,
+    tagline:document.getElementById("about-tagline").value.trim()||ABOUT_DEFAULTS.tagline,
+    missionText:document.getElementById("about-mission-text").value.trim()||ABOUT_DEFAULTS.missionText,
+    thankYou:document.getElementById("about-thankyou").value.trim()||ABOUT_DEFAULTS.thankYou,
+    signature:document.getElementById("about-sig").value.trim()||ABOUT_DEFAULTS.signature,
+    cards:getCardValues()
+  };
+  db.doc("settings/about").set(data)
+    .then(function(){showMsg("about-msg","🌟 About page updated!","success");})
+    .catch(function(e){showMsg("about-msg","Error: "+e.message,"error");})
+    .finally(function(){btn.disabled=false; btn.textContent="🌟 Save About Page";});
+});
+
+// Image preview
+document.getElementById("art-image").addEventListener("change", function(){
+  var file=this.files[0]; if(!file)return;
+  selectedFile=file;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    document.getElementById("upload-placeholder").style.display="none";
+    var img=document.getElementById("image-preview");
+    img.src=e.target.result; img.style.display="block";
+    showMsg("form-msg","📸 Image ready — "+Math.round(file.size/1024)+"KB","success");
+  };
+  reader.readAsDataURL(file);
+});
+
+// Save artwork
+document.getElementById("save-art-btn").addEventListener("click", function(){
+  var title=document.getElementById("art-title").value.trim();
+  var price=parseFloat(document.getElementById("art-price").value);
+  var desc=document.getElementById("art-desc").value.trim();
+  var emoji=document.getElementById("art-emoji").value.trim()||"🎨";
+  if(!title||!price||!desc){showMsg("form-msg","Please fill in title, price, and description!","error");return;}
+  var btn=document.getElementById("save-art-btn");
+  btn.disabled=true; btn.textContent="💾 Saving…";
+
+  function saveToFirestore(imageUrl){
+    db.collection("artworks").add({
+      title:title, price:price, description:desc, emoji:emoji,
+      imageUrl:imageUrl||"", sold:false,
+      createdAt:new Date().toISOString()
+    }).then(function(){
+      showMsg("form-msg","🚀 \""+title+"\" launched into the galaxy!","success");
+      clearForm();
+    }).catch(function(e){
+      showMsg("form-msg","Failed: "+e.message,"error");
+    }).finally(function(){
+      btn.disabled=false; btn.textContent="🚀 Launch Artwork";
+    });
+  }
+
+  if(selectedFile){
+    btn.textContent="📸 Uploading…";
+    var path="artworks/"+Date.now()+"_"+selectedFile.name.replace(/[^a-z0-9._-]/gi,"_");
+    storage.ref(path).put(selectedFile,{contentType:selectedFile.type}).then(function(snap){
+      return snap.ref.getDownloadURL();
+    }).then(function(url){
+      btn.textContent="💾 Saving…";
+      saveToFirestore(url);
+    }).catch(function(e){
+      showMsg("form-msg","Upload failed: "+e.message,"error");
+      btn.disabled=false; btn.textContent="🚀 Launch Artwork";
+    });
+  } else {
+    saveToFirestore("");
+  }
+});
+
+document.getElementById("clear-form-btn").addEventListener("click", clearForm);
+function clearForm(){
+  ["art-title","art-price","art-desc","art-emoji"].forEach(function(id){document.getElementById(id).value="";});
+  document.getElementById("image-preview").style.display="none";
+  document.getElementById("upload-placeholder").style.display="flex";
+  document.getElementById("art-image").value="";
+  selectedFile=null;
+}
+
+// Art list
+function renderArtList(arts){
+  var c=document.getElementById("admin-art-list");
+  if(!arts.length){c.innerHTML='<p class="empty-hint">No artworks yet — add one above!</p>';return;}
+  c.innerHTML=arts.sort(function(a,b){return b.id.localeCompare(a.id);}).map(function(a){
+    return '<div class="admin-art-item">'
+      +'<div class="admin-art-thumb">'
+      +(a.imageUrl?'<img src="'+esc(a.imageUrl)+'" alt="'+esc(a.title)+'" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/>':"")
+      +'<div class="admin-art-emoji" '+(a.imageUrl?'style="display:none"':"")+'>'+(a.emoji||"🎨")+'</div>'
+      +'</div>'
+      +'<div class="admin-art-info">'
+      +'<strong>'+esc(a.title)+'</strong>'
+      +(a.sold?' <span style="background:rgba(255,82,82,0.15);color:#ff8a80;border:1px solid rgba(255,82,82,0.3);padding:1px 8px;border-radius:20px;font-size:0.72rem;font-weight:800">SOLD</span>':"")
+      +'<span class="admin-art-price">$'+a.price+'</span>'
+      +'<p>'+(a.description||"").substring(0,80)+(((a.description||"").length>80)?"…":"")+'</p>'
+      +'</div>'
+      +(a.sold
+        ?'<button class="btn-secondary btn-sm" onclick="unmarkSold(\''+a.id+'\',this)">↩ Unmark Sold</button>'
+        :"")
+      +' <button class="btn-danger btn-sm" onclick="deleteArt(\''+a.id+'\',this)">🗑️</button>'
+      +'</div>';
+  }).join("");
+}
+
+function unmarkSold(id, btn){
+  if(!confirm("Mark this artwork as available again?"))return;
+  btn.disabled=true; btn.textContent="…";
+  db.collection("artworks").doc(id).update({sold:false,soldTo:null,soldAt:null}).catch(function(e){
+    btn.disabled=false; btn.textContent="↩ Unmark Sold";
+    alert("Error: "+e.message);
+  });
+}
+
+function deleteArt(id, btn){
+  if(!confirm("Delete this artwork permanently?"))return;
+  btn.disabled=true; btn.textContent="…";
+  db.collection("artworks").doc(id).delete().catch(function(e){
+    btn.disabled=false; btn.textContent="🗑️";
+    alert("Delete failed: "+e.message);
+  });
+}
+
+// Test write
+document.getElementById("test-write-btn").addEventListener("click", function(){
+  var btn=document.getElementById("test-write-btn");
+  var msg=document.getElementById("test-write-msg");
+  btn.disabled=true; btn.textContent="Testing…";
+  msg.style.display="block"; msg.style.color="var(--text-soft)"; msg.textContent="Writing test doc…";
+  db.collection("artworks").add({
+    title:"TEST — DELETE ME",price:1,description:"Test",emoji:"🧪",imageUrl:"",sold:false,createdAt:new Date().toISOString()
+  }).then(function(ref){
+    msg.style.color="var(--planet-green)"; msg.textContent="✅ SUCCESS! Doc ID: "+ref.id;
+  }).catch(function(e){
+    msg.style.color="#ff5252"; msg.textContent="❌ FAILED: "+e.message;
+  }).finally(function(){btn.disabled=false; btn.textContent="🧪 Test Firestore Write";});
+});
+
+// Reset
+document.getElementById("reset-btn").addEventListener("click", function(){
+  if(!confirm("⚠️ Delete ALL artworks and sales? This cannot be undone!"))return;
+  var btn=document.getElementById("reset-btn");
+  btn.disabled=true; btn.textContent="🗑️ Resetting…";
+  var batch=db.batch();
+  Promise.all([
+    db.collection("artworks").get(),
+    db.collection("pledges").get()
+  ]).then(function(results){
+    results[0].docs.forEach(function(d){batch.delete(d.ref);});
+    results[1].docs.forEach(function(d){batch.delete(d.ref);});
+    batch.set(db.doc("stats/global"),{totalPledged:0,backerCount:0});
+    return batch.commit();
+  }).then(function(){alert("All data reset!");})
+  .catch(function(e){alert("Reset failed: "+e.message);})
+  .finally(function(){btn.disabled=false; btn.textContent="🗑️ Reset All Artworks & Sales";});
+});
+
+// Helpers
+function showMsg(id, text, type){
+  var m=document.getElementById(id);
+  m.textContent=text; m.className="form-msg form-msg-"+type; m.style.display="block";
+  setTimeout(function(){m.style.display="none";},5000);
+}
+</script>
+</body>
+</html>
