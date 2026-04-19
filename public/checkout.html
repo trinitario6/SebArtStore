@@ -26,7 +26,7 @@
   <div class="success-screen" id="success-screen" style="display:none">
     <div class="success-rocket">🚀</div>
     <h1 class="success-title">Purchase Complete!</h1>
-    <p class="success-msg">Thank you for buying Sebastian's art! 🌟<br/>Sebastian will contact you soon to arrange delivery and payment.</p>
+    <p class="success-msg">Thank you for buying Sebastian's art! 🌟<br/>Sebastian will be in touch to arrange delivery.</p>
     <div class="success-badge">⭐ Art Collector ⭐</div>
     <p class="success-progress-msg" id="success-progress-msg"></p>
     <div class="success-actions">
@@ -50,7 +50,6 @@ var FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 var db = firebase.firestore();
 
-// Stars
 var sc=document.getElementById("stars");
 for(var i=0;i<100;i++){var s=document.createElement("div");s.className="star";s.style.cssText="left:"+Math.random()*100+"%;top:"+Math.random()*100+"%;width:"+(Math.random()*3+1)+"px;height:"+(Math.random()*3+1)+"px;animation-delay:"+Math.random()*3+"s;animation-duration:"+(Math.random()*2+2)+"s";sc.appendChild(s);}
 
@@ -80,7 +79,6 @@ if(!artId){
       return;
     }
     renderCheckout(art);
-    listenComments(artId);
   });
 }
 
@@ -100,90 +98,49 @@ function renderCheckout(art){
     +'<span class="price-value">$'+art.price+'</span>'
     +'</div>'
     +'<div class="checkout-note"><span>🌟</span>'
-    +'<p>No payment is collected here. By clicking Buy, you commit to purchasing this artwork. Sebastian will contact you to arrange payment and delivery!</p>'
+    +'<p>No payment collected here. By clicking Buy, you commit to purchasing this artwork. Sebastian will contact you to arrange payment and delivery!</p>'
     +'</div>'
     +'<div class="checkout-form">'
     +'<input type="text" id="buyer-name" class="form-input" placeholder="Your name *" maxlength="50"/>'
-    +'<input type="text" id="buyer-contact" class="form-input" placeholder="Your email or phone number *" maxlength="100"/>'
     +'<textarea id="buyer-msg" class="form-input form-textarea" placeholder="Any message for Sebastian… 🌟" maxlength="200" rows="3"></textarea>'
     +'<button class="btn-primary btn-full" id="buy-btn">🛒 Buy for $'+art.price+'</button>'
-    +'</div></div></div>'
-    +'<div class="comments-section">'
-    +'<h2 class="comments-title">💬 Buyer Messages</h2>'
-    +'<p class="comments-sub">Messages from people who bought this artwork</p>'
-    +'<div id="comments-list" class="comments-list">'
-    +'<div class="gallery-loading"><div class="loading-spinner"></div><p>Loading…</p></div>'
-    +'</div></div>';
+    +'</div></div></div>';
 
-  document.getElementById("buy-btn").addEventListener("click", function(){
-    completePurchase(art.id, art.price, art.title);
+  document.getElementById("buy-btn").addEventListener("click",function(){
+    completePurchase(art.id,art.price,art.title);
   });
 }
 
-function listenComments(artId){
-  db.collection("pledges").onSnapshot(function(snap){
-    var pledges=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
-      .filter(function(p){return p.artId===artId;})
-      .sort(function(a,b){return b.id.localeCompare(a.id);});
-    var list=document.getElementById("comments-list");
-    if(!list)return;
-    if(!pledges.length){list.innerHTML='<div class="empty-comments">No messages yet — be the first! 🚀</div>';return;}
-    list.innerHTML=pledges.map(function(p){
-      var date="";
-      if(p.createdAt&&p.createdAt.toDate)date=p.createdAt.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-      return '<div class="comment-card">'
-        +'<div class="comment-avatar">'+(p.name||"?")[0].toUpperCase()+'</div>'
-        +'<div class="comment-body">'
-        +'<div class="comment-header">'
-        +'<span class="comment-name">'+esc(p.name||"Someone")+'</span>'
-        +'<span class="comment-amount">bought for $'+p.amount+'</span>'
-        +'<span class="comment-date">'+date+'</span>'
-        +'</div>'
-        +(p.comment?'<p class="comment-text">'+esc(p.comment)+'</p>':'<p class="comment-text comment-no-msg"><em>No message left</em></p>')
-        +'</div></div>';
-    }).join("");
-  });
-}
-
-function completePurchase(artId, price, artTitle){
+function completePurchase(artId,price,artTitle){
   var btn=document.getElementById("buy-btn");
   var name=document.getElementById("buyer-name").value.trim();
-  var contact=document.getElementById("buyer-contact").value.trim();
   var msg=document.getElementById("buyer-msg").value.trim();
   if(!name){alert("Please enter your name!");return;}
-  if(!contact){alert("Please enter your email or phone so Sebastian can reach you!");return;}
   btn.disabled=true; btn.textContent="Processing…";
 
-  // Mark artwork as sold
   db.collection("artworks").doc(artId).update({
-    sold:true, soldTo:name, soldContact:contact,
-    soldAt:firebase.firestore.FieldValue.serverTimestamp()
+    sold:true, soldTo:name, soldAt:firebase.firestore.FieldValue.serverTimestamp()
   }).then(function(){
-    // Record purchase
     return db.collection("pledges").add({
       artId:artId, artTitle:artTitle, amount:price,
-      name:name, contact:contact, comment:msg,
-      delivered:false,
+      name:name, comment:msg, delivered:false,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
   }).then(function(){
-    // Update stats
-    return db.doc("stats/global").get();
-  }).then(function(statsSnap){
-    if(!statsSnap.exists){
-      return db.doc("stats/global").set({totalPledged:price,backerCount:1});
-    } else {
-      return db.doc("stats/global").update({
+    var statsRef=db.doc("stats/global");
+    return statsRef.get().then(function(snap){
+      if(!snap.exists) return statsRef.set({totalPledged:price,backerCount:1});
+      return statsRef.update({
         totalPledged:firebase.firestore.FieldValue.increment(price),
         backerCount:firebase.firestore.FieldValue.increment(1)
       });
-    }
+    });
   }).then(function(){
     return db.doc("stats/global").get();
-  }).then(function(updated){
-    var pct=Math.min(100,Math.round(((updated.data().totalPledged||0)/goal)*100));
-    document.getElementById("success-progress-msg").textContent=
-      "The mission is now "+pct+"% funded! ($"+(updated.data().totalPledged||0).toFixed(0)+" of $"+goal+")";
+  }).then(function(snap){
+    var total=(snap.data().totalPledged||0).toFixed(0);
+    var pct=Math.min(100,Math.round(((snap.data().totalPledged||0)/goal)*100));
+    document.getElementById("success-progress-msg").textContent="The mission is now "+pct+"% funded! ($"+total+" of $"+goal+")";
     container.style.display="none";
     document.getElementById("success-screen").style.display="flex";
   }).catch(function(err){

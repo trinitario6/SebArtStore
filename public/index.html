@@ -10,40 +10,42 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <style>
-    /* Fix stat boxes — shrink font on small screens */
     .mission-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
     .stat { text-align:center; background:rgba(255,255,255,0.04); border-radius:var(--radius-md); padding:14px 8px; border:1px solid var(--card-border); min-width:0; overflow:hidden; }
     .stat-num { display:block; font-family:'Orbitron',sans-serif; font-size:clamp(1.1rem,4vw,1.8rem); font-weight:900; color:var(--star-yellow); white-space:nowrap; }
     .stat-label { font-size:clamp(0.65rem,2vw,0.8rem); color:var(--text-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
 
-    /* Sort bar */
     .sort-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:24px; }
     .sort-label { color:var(--text-soft); font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-right:4px; }
     .sort-btn { background:rgba(255,255,255,0.06); border:1px solid var(--card-border); color:var(--text-soft); padding:7px 14px; border-radius:30px; font-family:'Nunito',sans-serif; font-size:0.82rem; font-weight:700; cursor:pointer; transition:all 0.2s; }
     .sort-btn.active, .sort-btn:hover { background:rgba(64,224,208,0.12); border-color:rgba(64,224,208,0.4); color:var(--comet-cyan); }
 
-    /* Sold badge */
-    .sold-badge { position:absolute; top:10px; right:10px; background:rgba(255,82,82,0.9); color:white; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.05em; z-index:3; }
+    .sold-badge { position:absolute; top:10px; right:10px; background:rgba(255,82,82,0.9); color:white; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.05em; z-index:3; pointer-events:none; }
     .art-card.sold .art-card-image { opacity:0.65; }
 
-    /* Image zoom modal */
-    .zoom-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; align-items:center; justify-content:center; cursor:zoom-out; }
+    /* Zoom hint */
+    .zoom-hint { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:white; font-size:0.7rem; padding:3px 10px; border-radius:20px; pointer-events:none; white-space:nowrap; opacity:0; transition:opacity 0.2s; z-index:4; }
+    .art-card-image:hover .zoom-hint { opacity:1; }
+
+    /* Zoom modal */
+    .zoom-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:16px; }
     .zoom-modal.open { display:flex; }
-    .zoom-modal img { max-width:92vw; max-height:88vh; border-radius:12px; object-fit:contain; box-shadow:0 0 60px rgba(0,0,0,0.8); }
-    .zoom-modal-emoji { font-size:8rem; }
-    .zoom-close { position:absolute; top:16px; right:20px; color:white; font-size:2rem; cursor:pointer; opacity:0.7; line-height:1; background:none; border:none; }
-    .zoom-title { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); color:white; font-family:'Orbitron',sans-serif; font-size:0.9rem; white-space:nowrap; opacity:0.8; }
-    .art-card-image { cursor:zoom-in; }
+    .zoom-modal img { max-width:94vw; max-height:80vh; border-radius:12px; object-fit:contain; box-shadow:0 0 60px rgba(0,0,0,0.8); }
+    .zoom-modal-emoji { font-size:9rem; }
+    .zoom-close { position:absolute; top:16px; right:20px; color:white; font-size:2.2rem; cursor:pointer; opacity:0.8; background:none; border:none; line-height:1; z-index:10; }
+    .zoom-title { color:white; font-family:'Orbitron',sans-serif; font-size:0.95rem; opacity:0.85; text-align:center; padding:0 24px; }
+    .zoom-buy-btn { margin-top:4px; }
   </style>
 </head>
 <body>
 <div class="stars" id="stars"></div>
 
 <!-- Zoom Modal -->
-<div class="zoom-modal" id="zoom-modal" onclick="closeZoom()">
-  <button class="zoom-close" onclick="closeZoom()">✕</button>
+<div class="zoom-modal" id="zoom-modal">
+  <button class="zoom-close" id="zoom-close-btn">✕</button>
   <div id="zoom-content"></div>
   <div class="zoom-title" id="zoom-title"></div>
+  <div id="zoom-actions"></div>
 </div>
 
 <nav class="navbar">
@@ -77,7 +79,7 @@
     </div>
     <div class="progress-container">
       <div class="progress-labels">
-        <span id="pledged-amount">$0 pledged</span>
+        <span id="pledged-amount">$0 raised</span>
         <span class="goal-label" id="goal-label">Goal: $200</span>
       </div>
       <div class="progress-track">
@@ -88,7 +90,7 @@
       <div class="progress-percent" id="progress-percent">0% to launch!</div>
     </div>
     <div class="mission-stats">
-      <div class="stat"><span class="stat-num" id="backer-count">0</span><span class="stat-label">Supporters</span></div>
+      <div class="stat"><span class="stat-num" id="backer-count">0</span><span class="stat-label">Buyers</span></div>
       <div class="stat"><span class="stat-num" id="art-count">0</span><span class="stat-label">Artworks</span></div>
       <div class="stat"><span class="stat-num" id="goal-amount">$200</span><span class="stat-label">Goal</span></div>
     </div>
@@ -102,11 +104,11 @@
   </div>
   <div class="sort-bar">
     <span class="sort-label">Sort:</span>
-    <button class="sort-btn active" id="sort-newest" onclick="setSort('newest',this)">Newest</button>
-    <button class="sort-btn" id="sort-price-asc" onclick="setSort('price-asc',this)">Price ↑</button>
-    <button class="sort-btn" id="sort-price-desc" onclick="setSort('price-desc',this)">Price ↓</button>
-    <button class="sort-btn" id="sort-available" onclick="setSort('available',this)">Available</button>
-    <button class="sort-btn" id="sort-sold" onclick="setSort('sold',this)">Sold</button>
+    <button class="sort-btn active" onclick="setSort('newest',this)">Newest</button>
+    <button class="sort-btn" onclick="setSort('price-asc',this)">Price ↑</button>
+    <button class="sort-btn" onclick="setSort('price-desc',this)">Price ↓</button>
+    <button class="sort-btn" onclick="setSort('available',this)">Available</button>
+    <button class="sort-btn" onclick="setSort('sold',this)">Sold</button>
   </div>
   <div class="gallery-grid" id="gallery-grid">
     <div class="gallery-loading"><div class="loading-spinner"></div><p>Scanning the cosmos…</p></div>
@@ -144,28 +146,29 @@ for(var i=0;i<150;i++){var s=document.createElement("div");s.className="star";s.
 var goal=200, lastStats={totalPledged:0,backerCount:0}, allArts=[], sortMode='newest';
 
 function updateProgress(){
-  var pct=Math.min(100,(lastStats.totalPledged||0)/goal*100);
+  var total=lastStats.totalPledged||0;
+  var pct=Math.min(100,total/goal*100);
   document.getElementById("progress-bar").style.width=Math.max(pct,4)+"%";
   document.getElementById("progress-percent").textContent=pct>=100?"🎉 Goal reached!":Math.round(pct)+"% to launch!";
-  document.getElementById("pledged-amount").textContent="$"+(lastStats.totalPledged||0).toFixed(0)+" pledged";
+  document.getElementById("pledged-amount").textContent="$"+total.toFixed(0)+" raised";
   document.getElementById("backer-count").textContent=lastStats.backerCount||0;
   document.getElementById("goal-label").textContent="Goal: $"+goal;
   document.getElementById("goal-amount").textContent="$"+goal;
 }
 
-function setSort(mode, btn){
+function setSort(mode,btn){
   sortMode=mode;
   document.querySelectorAll(".sort-btn").forEach(function(b){b.classList.remove("active");});
   btn.classList.add("active");
   renderArts();
 }
 
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
 function renderArts(){
   var arts=allArts.slice();
-  // Filter
   if(sortMode==='available') arts=arts.filter(function(a){return !a.sold;});
   else if(sortMode==='sold') arts=arts.filter(function(a){return a.sold;});
-  // Sort
   if(sortMode==='price-asc') arts.sort(function(a,b){return a.price-b.price;});
   else if(sortMode==='price-desc') arts.sort(function(a,b){return b.price-a.price;});
   else arts.sort(function(a,b){return b.id.localeCompare(a.id);});
@@ -174,21 +177,20 @@ function renderArts(){
   var empty=document.getElementById("empty-msg");
   document.getElementById("art-count").textContent=allArts.length;
 
-  if(!arts.length){
-    grid.innerHTML=""; grid.style.display="none"; empty.style.display="flex"; return;
-  }
+  if(!arts.length){grid.innerHTML="";grid.style.display="none";empty.style.display="flex";return;}
   grid.style.display="grid"; empty.style.display="none";
+
   grid.innerHTML=arts.map(function(art,i){
     var imgHtml=art.imageUrl
-      ?'<img src="'+esc(art.imageUrl)+'" alt="'+esc(art.title)+'" loading="lazy" onclick="openZoom(\''+esc(art.imageUrl)+'\',\''+esc(art.title)+'\')" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/>'
+      ?'<img src="'+esc(art.imageUrl)+'" alt="'+esc(art.title)+'" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/>'
       :"";
-    var emojiHtml='<div class="art-card-emoji" '+(art.imageUrl?'style="display:none"':"")
-      +' onclick="openZoom(\'\',\''+esc(art.title)+'\',\''+esc(art.emoji||"🎨")+'\')">'+(art.emoji||"🎨")+'</div>';
+    var emojiHtml='<div class="art-card-emoji" '+(art.imageUrl?'style="display:none"':"")+'>'+(art.emoji||"🎨")+'</div>';
+
     return '<div class="art-card'+(art.sold?" sold":"")+'" style="animation-delay:'+i*0.08+'s">'
-      +'<div class="art-card-image" style="position:relative">'
+      +'<div class="art-card-image" style="position:relative" onclick="openZoom(\''+esc(art.imageUrl||"")+'\',\''+esc(art.title)+'\',\''+esc(art.emoji||"🎨")+'\',\''+(art.sold?"":'checkout.html?id='+art.id)+'\','+art.sold+')">'
       +(art.sold?'<div class="sold-badge">Sold</div>':"")
       +imgHtml+emojiHtml
-      +(!art.sold?'<div class="art-card-overlay"><a href="checkout.html?id='+art.id+'" class="btn-pledge">🛒 Buy Now</a></div>':"")
+      +'<div class="zoom-hint">🔍 Tap to zoom</div>'
       +'</div>'
       +'<div class="art-card-body">'
       +'<h3 class="art-card-title">'+esc(art.title)+'</h3>'
@@ -196,32 +198,50 @@ function renderArts(){
       +'<div class="art-card-footer">'
       +'<span class="art-card-price">'+(art.sold?'<span style="color:#ff8a80;font-size:0.85rem;font-weight:800">SOLD</span>':"$"+art.price)+'</span>'
       +(art.sold
-        ?'<a href="checkout.html?id='+art.id+'" class="art-card-btn" style="opacity:0.5;pointer-events:none">Sold ✓</a>'
+        ?'<span class="art-card-btn" style="opacity:0.45;pointer-events:none">Sold ✓</span>'
         :'<a href="checkout.html?id='+art.id+'" class="art-card-btn">Buy ✨</a>')
       +'</div></div></div>';
   }).join("");
 }
 
-// Zoom
-function openZoom(url, title, emoji){
-  var modal=document.getElementById("zoom-modal");
+// Zoom modal
+function openZoom(url, title, emoji, buyUrl, isSold){
   var content=document.getElementById("zoom-content");
-  document.getElementById("zoom-title").textContent=title||"";
+  var titleEl=document.getElementById("zoom-title");
+  var actionsEl=document.getElementById("zoom-actions");
+
+  titleEl.textContent=title||"";
+
   if(url){
-    content.innerHTML='<img src="'+esc(url)+'" alt="'+esc(title||"")+'" onclick="event.stopPropagation()"/>';
+    content.innerHTML='<img src="'+esc(url)+'" alt="'+esc(title||"")+'"/>';
   } else {
-    content.innerHTML='<div class="zoom-modal-emoji" onclick="event.stopPropagation()">'+(emoji||"🎨")+'</div>';
+    content.innerHTML='<div class="zoom-modal-emoji">'+(emoji||"🎨")+'</div>';
   }
-  modal.classList.add("open");
+
+  // Show buy button only if not sold
+  if(!isSold && buyUrl){
+    actionsEl.innerHTML='<a href="'+esc(buyUrl)+'" class="btn-primary zoom-buy-btn">🛒 Buy for $'+getPriceFromUrl(buyUrl)+'</a>';
+  } else {
+    actionsEl.innerHTML='';
+  }
+
+  document.getElementById("zoom-modal").classList.add("open");
   document.body.style.overflow="hidden";
 }
+
+function getPriceFromUrl(url){
+  // Just navigate — price shown on checkout page
+  return "…";
+}
+
 function closeZoom(){
   document.getElementById("zoom-modal").classList.remove("open");
   document.body.style.overflow="";
 }
-document.addEventListener("keydown",function(e){if(e.key==="Escape")closeZoom();});
 
-function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+document.getElementById("zoom-close-btn").addEventListener("click",function(e){e.stopPropagation();closeZoom();});
+document.getElementById("zoom-modal").addEventListener("click",function(e){if(e.target===this)closeZoom();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeZoom();});
 
 db.doc("settings/config").onSnapshot(function(s){if(s.exists&&s.data().goal)goal=s.data().goal;updateProgress();});
 db.doc("stats/global").onSnapshot(function(s){lastStats=s.exists?s.data():{totalPledged:0,backerCount:0};updateProgress();});

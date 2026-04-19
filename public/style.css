@@ -366,7 +366,7 @@ body {
 
 .rocket-icon {
   position: absolute;
-  right: -18px;
+  right: -22px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.6rem;
@@ -376,8 +376,8 @@ body {
 }
 
 @keyframes rocketBob {
-  0%, 100% { transform: translateY(-50%) rotate(-90deg); }
-  50% { transform: translateY(calc(-50% - 4px)) rotate(-85deg); }
+  0%, 100% { transform: translateY(-50%) rotate(0deg); }
+  50% { transform: translateY(calc(-50% - 3px)) rotate(2deg); }
 }
 
 .progress-percent {
