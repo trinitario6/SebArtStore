@@ -457,19 +457,119 @@ function renderArtList(arts){
       +'<span class="admin-art-price">$'+a.price+'</span>'
       +'<p>'+(a.description||"").substring(0,80)+(((a.description||"").length>80)?"…":"")+'</p>'
       +'</div>'
-      +(a.sold
-        ?'<button class="btn-secondary btn-sm" onclick="unmarkSold(\''+a.id+'\',this)">↩ Unmark Sold</button>'
-        :"")
-      +' <button class="btn-danger btn-sm" onclick="deleteArt(\''+a.id+'\',this)">🗑️</button>'
+      +'<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
+      +'<button class="btn-secondary btn-sm" onclick="openEditModal(\''+a.id+'\')">✏️ Edit</button>'
+      +(a.sold?'<button class="btn-secondary btn-sm" onclick="unmarkSold(\''+a.id+'\',this)">↩ Unsell</button>':"")
+      +'<button class="btn-danger btn-sm" onclick="deleteArt(\''+a.id+'\',this)">🗑️</button>'
+      +'</div>'
       +'</div>';
   }).join("");
+}
+
+// Edit modal — injected into page dynamically
+var editModal = null;
+var editFile = null;
+
+function openEditModal(artId){
+  db.collection("artworks").doc(artId).get().then(function(snap){
+    if(!snap.exists)return;
+    var a=Object.assign({id:snap.id},snap.data());
+
+    // Remove old modal if exists
+    var old=document.getElementById("edit-modal-overlay");
+    if(old)old.remove();
+
+    var overlay=document.createElement("div");
+    overlay.id="edit-modal-overlay";
+    overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+    overlay.innerHTML=
+      '<div style="background:var(--space-blue);border:1px solid var(--card-border);border-radius:var(--radius-lg);padding:28px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;">'
+      +'<h2 style="font-family:Orbitron,sans-serif;font-size:1.1rem;margin-bottom:20px;color:var(--comet-cyan)">✏️ Edit Artwork</h2>'
+      +'<div class="form-group" style="margin-bottom:12px"><label class="form-label">Title</label>'
+      +'<input type="text" id="edit-title" class="form-input" value="'+esc(a.title||"")+'" maxlength="60"/></div>'
+      +'<div class="form-group" style="margin-bottom:12px"><label class="form-label">Price ($)</label>'
+      +'<input type="number" id="edit-price" class="form-input" value="'+esc(String(a.price||""))+'" min="1" max="999"/></div>'
+      +'<div class="form-group" style="margin-bottom:12px"><label class="form-label">Description</label>'
+      +'<textarea id="edit-desc" class="form-input form-textarea" rows="3">'+esc(a.description||"")+'</textarea></div>'
+      +'<div class="form-group" style="margin-bottom:12px"><label class="form-label">Emoji</label>'
+      +'<input type="text" id="edit-emoji" class="form-input" value="'+esc(a.emoji||"🎨")+'" maxlength="4"/></div>'
+      +'<div class="form-group" style="margin-bottom:16px"><label class="form-label">Replace Image (optional)</label>'
+      +'<div class="upload-area" onclick="document.getElementById(\'edit-image-input\').click()" style="min-height:80px">'
+      +'<input type="file" id="edit-image-input" accept="image/*" style="display:none"/>'
+      +(a.imageUrl?'<img id="edit-img-preview" src="'+esc(a.imageUrl)+'" style="max-height:120px;border-radius:8px"/>'
+        :'<div id="edit-img-preview" style="color:var(--text-soft);font-size:0.85rem;padding:12px 0">Click to choose new image</div>')
+      +'</div></div>'
+      +'<div style="display:flex;gap:10px">'
+      +'<button class="btn-primary" id="edit-save-btn" onclick="saveEdit(\''+a.id+'\',\''+esc(a.imageUrl||"")+'\')">💾 Save Changes</button>'
+      +'<button class="btn-secondary" onclick="document.getElementById(\'edit-modal-overlay\').remove()">Cancel</button>'
+      +'</div>'
+      +'<p id="edit-msg" class="form-msg" style="display:none;margin-top:12px"></p>'
+      +'</div>';
+
+    document.body.appendChild(overlay);
+    editFile=null;
+
+    document.getElementById("edit-image-input").addEventListener("change",function(){
+      var file=this.files[0]; if(!file)return;
+      editFile=file;
+      var reader=new FileReader();
+      reader.onload=function(e){
+        var prev=document.getElementById("edit-img-preview");
+        prev.src=e.target.result;
+        prev.tagName==="IMG"?prev.src=e.target.result:prev.outerHTML='<img id="edit-img-preview" src="'+e.target.result+'" style="max-height:120px;border-radius:8px"/>';
+        document.getElementById("edit-img-preview").src=e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    overlay.addEventListener("click",function(e){if(e.target===overlay)overlay.remove();});
+  });
+}
+
+function saveEdit(artId, oldImageUrl){
+  var btn=document.getElementById("edit-save-btn");
+  var title=document.getElementById("edit-title").value.trim();
+  var price=parseFloat(document.getElementById("edit-price").value);
+  var desc=document.getElementById("edit-desc").value.trim();
+  var emoji=document.getElementById("edit-emoji").value.trim()||"🎨";
+  if(!title||!price){showEditMsg("Title and price are required","error");return;}
+  btn.disabled=true; btn.textContent="Saving…";
+
+  function doUpdate(imageUrl){
+    var update={title:title,price:price,description:desc,emoji:emoji};
+    if(imageUrl!==null) update.imageUrl=imageUrl;
+    db.collection("artworks").doc(artId).update(update)
+      .then(function(){
+        showEditMsg("✅ Saved!","success");
+        setTimeout(function(){document.getElementById("edit-modal-overlay").remove();},800);
+      })
+      .catch(function(e){showEditMsg("Error: "+e.message,"error");})
+      .finally(function(){btn.disabled=false; btn.textContent="💾 Save Changes";});
+  }
+
+  if(editFile){
+    btn.textContent="📸 Uploading…";
+    var path="artworks/"+Date.now()+"_"+editFile.name.replace(/[^a-z0-9._-]/gi,"_");
+    storage.ref(path).put(editFile,{contentType:editFile.type})
+      .then(function(snap){return snap.ref.getDownloadURL();})
+      .then(function(url){doUpdate(url);})
+      .catch(function(e){showEditMsg("Upload failed: "+e.message,"error");btn.disabled=false;btn.textContent="💾 Save Changes";});
+  } else {
+    doUpdate(null);
+  }
+}
+
+function showEditMsg(text,type){
+  var m=document.getElementById("edit-msg");
+  if(!m)return;
+  m.textContent=text; m.className="form-msg form-msg-"+type; m.style.display="block";
 }
 
 function unmarkSold(id, btn){
   if(!confirm("Mark this artwork as available again?"))return;
   btn.disabled=true; btn.textContent="…";
   db.collection("artworks").doc(id).update({sold:false,soldTo:null,soldAt:null}).catch(function(e){
-    btn.disabled=false; btn.textContent="↩ Unmark Sold";
+    btn.disabled=false; btn.textContent="↩ Unsell";
     alert("Error: "+e.message);
   });
 }
