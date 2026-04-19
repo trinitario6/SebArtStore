@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>About Sebastian 🌟</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">🚀 Sebastian's Art</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">Gallery</a>
+    <a href="about.html" class="nav-link active">About</a>
+    <a href="index.html#mission" class="nav-link">Mission</a>
+  </div>
+</nav>
+<main class="about-page">
+  <section class="about-hero">
+    <div class="about-planet-deco">🪐</div>
+    <div class="about-avatar">
+      <div class="avatar-ring"><div class="avatar-inner">👨‍🚀</div></div>
+      <div class="avatar-badge">🌟 The Artist</div>
+    </div>
+    <h1 class="about-name">Hi, I'm <span class="glow-text" id="about-name-display">Sebastian!</span></h1>
+    <p class="about-tagline" id="about-tagline-display">Space Explorer · Dreamer · Artist</p>
+  </section>
+  <section class="about-cards" id="about-cards">
+    <div class="gallery-loading" style="grid-column:1/-1"><div class="loading-spinner"></div><p>Loading Sebastian's story…</p></div>
+  </section>
+  <section class="about-mission">
+    <div class="mission-callout">
+      <h2>🖨️ Help Me Get a Color Printer!</h2>
+      <p id="about-mission-text">Right now I can only share my art online, but my dream is to print it out and give it to people! Every time someone buys one of my artworks, I get closer to that goal. Will you help me launch?</p>
+      <a href="index.html#mission" class="btn-primary">See the Mission Progress 🚀</a>
+    </div>
+  </section>
+  <section class="thank-you">
+    <div class="ty-stars">✨ ⭐ 🌟 ✨ ⭐</div>
+    <h2>Thank You for Visiting!</h2>
+    <p id="about-thankyou-text">Every person who looks at my art makes me so happy. Whether you buy or just browse, you're part of my mission to the stars. Thank you from the bottom of my space-loving heart! 💙</p>
+    <p class="ty-sig" id="about-sig-display">— Sebastian 🚀</p>
+  </section>
+</main>
+<footer class="footer">
+  <p>🚀 Sebastian's Space Gallery &nbsp;|&nbsp; Made with ❤️ and stardust</p>
+  <div class="footer-links">
+    <a href="index.html">Gallery</a><a href="about.html">About</a><a href="admin/index.html" class="admin-link">Admin</a>
+  </div>
+</footer>
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBJus0fO1qbIyGYjm3xAyno93mLj8B86zg",authDomain:"sebify-87bf5.firebaseapp.com",
+  projectId:"sebify-87bf5",storageBucket:"sebify-87bf5.firebasestorage.app",
+  messagingSenderId:"1028317310503",appId:"1:1028317310503:web:c06cf377b0a110bf2fe802"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+const db=firebase.firestore();
+
+const sc=document.getElementById("stars");
+for(let i=0;i<150;i++){const s=document.createElement("div");s.className="star";s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*3+1}px;height:${Math.random()*3+1}px;animation-delay:${Math.random()*3}s;animation-duration:${Math.random()*2+2}s`;sc.appendChild(s);}
+
+const DEFAULTS={
+  name:"Sebastian",tagline:"Space Explorer · Dreamer · Artist",
+  missionText:"Right now I can only share my art online, but my dream is to print it out and give it to people! Every time someone buys one of my artworks, I get closer to that goal. Will you help me launch?",
+  thankYou:"Every person who looks at my art makes me so happy. Whether you buy or just browse, you're part of my mission to the stars. Thank you from the bottom of my space-loving heart! 💙",
+  signature:"— Sebastian 🚀",
+  cards:[
+    {icon:"🎨",title:"My Art",text:"I love to paint and draw more than almost anything! My favorite things to draw are planets, rockets, aliens, and all the cool things that might be out there in space."},
+    {icon:"🚀",title:"Why Space?",text:"Space is SO cool because it's the biggest thing there is — and nobody has seen all of it! I like to imagine what other planets look like and whether aliens are friendly."},
+    {icon:"💡",title:"The Big Idea",text:"I started this gallery to share my art with the whole universe! My dream is to save up enough to buy a color printer so I can print my artwork and share it with people."},
+    {icon:"🌠",title:"Fun Facts",text:"⭐ My favorite planet is Saturn\n⭐ I've watched every space documentary I can find\n⭐ I want to be an astronaut AND an artist\n⭐ I draw at least one picture every single day\n⭐ My lucky color is galaxy blue"}
+  ]
+};
+
+function applyAbout(data){
+  const d={...DEFAULTS,...data};
+  document.getElementById("about-name-display").textContent=d.name+"!";
+  document.getElementById("about-tagline-display").textContent=d.tagline;
+  document.getElementById("about-mission-text").textContent=d.missionText;
+  document.getElementById("about-thankyou-text").textContent=d.thankYou;
+  document.getElementById("about-sig-display").textContent=d.signature;
+  const cards=(d.cards&&d.cards.length)?d.cards:DEFAULTS.cards;
+  document.getElementById("about-cards").innerHTML=cards.map(c=>`
+    <div class="story-card">
+      <div class="story-icon">${c.icon||"⭐"}</div>
+      <h3>${c.title}</h3>
+      <p style="white-space:pre-line">${c.text}</p>
+    </div>`).join("");
+}
+
+applyAbout({});
+db.doc("settings/about").onSnapshot(snap=>applyAbout(snap.exists?snap.data():{}));
+</script>
+</body>
+</html>

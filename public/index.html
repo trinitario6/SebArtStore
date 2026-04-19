@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sebastian's Space Art 🚀</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <style>
+    /* Fix stat boxes — shrink font on small screens */
+    .mission-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .stat { text-align:center; background:rgba(255,255,255,0.04); border-radius:var(--radius-md); padding:14px 8px; border:1px solid var(--card-border); min-width:0; overflow:hidden; }
+    .stat-num { display:block; font-family:'Orbitron',sans-serif; font-size:clamp(1.1rem,4vw,1.8rem); font-weight:900; color:var(--star-yellow); white-space:nowrap; }
+    .stat-label { font-size:clamp(0.65rem,2vw,0.8rem); color:var(--text-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
+
+    /* Sort bar */
+    .sort-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:24px; }
+    .sort-label { color:var(--text-soft); font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-right:4px; }
+    .sort-btn { background:rgba(255,255,255,0.06); border:1px solid var(--card-border); color:var(--text-soft); padding:7px 14px; border-radius:30px; font-family:'Nunito',sans-serif; font-size:0.82rem; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .sort-btn.active, .sort-btn:hover { background:rgba(64,224,208,0.12); border-color:rgba(64,224,208,0.4); color:var(--comet-cyan); }
+
+    /* Sold badge */
+    .sold-badge { position:absolute; top:10px; right:10px; background:rgba(255,82,82,0.9); color:white; font-size:0.72rem; font-weight:800; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.05em; z-index:3; }
+    .art-card.sold .art-card-image { opacity:0.65; }
+
+    /* Image zoom modal */
+    .zoom-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; align-items:center; justify-content:center; cursor:zoom-out; }
+    .zoom-modal.open { display:flex; }
+    .zoom-modal img { max-width:92vw; max-height:88vh; border-radius:12px; object-fit:contain; box-shadow:0 0 60px rgba(0,0,0,0.8); }
+    .zoom-modal-emoji { font-size:8rem; }
+    .zoom-close { position:absolute; top:16px; right:20px; color:white; font-size:2rem; cursor:pointer; opacity:0.7; line-height:1; background:none; border:none; }
+    .zoom-title { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); color:white; font-family:'Orbitron',sans-serif; font-size:0.9rem; white-space:nowrap; opacity:0.8; }
+    .art-card-image { cursor:zoom-in; }
+  </style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<!-- Zoom Modal -->
+<div class="zoom-modal" id="zoom-modal" onclick="closeZoom()">
+  <button class="zoom-close" onclick="closeZoom()">✕</button>
+  <div id="zoom-content"></div>
+  <div class="zoom-title" id="zoom-title"></div>
+</div>
+
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">🚀 Sebastian's Art</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link active">Gallery</a>
+    <a href="about.html" class="nav-link">About</a>
+    <a href="index.html#mission" class="nav-link">Mission</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">✨ Original Artwork by a Kid, for the Universe</div>
+    <h1 class="hero-title">Sebastian's<br/><span class="glow-text">Space Gallery</span></h1>
+    <p class="hero-subtitle">Explore the cosmos through Sebastian's eyes — one painting at a time!</p>
+    <a href="#gallery" class="btn-primary">Browse the Galaxy 🌌</a>
+  </div>
+  <div class="hero-planet"></div>
+  <div class="hero-rocket">🚀</div>
+</header>
+
+<section class="mission-section" id="mission">
+  <div class="mission-card">
+    <div class="mission-header">
+      <span class="mission-icon">🖨️</span>
+      <div>
+        <h2 class="mission-title">Mission: Color Printer</h2>
+        <p class="mission-sub">Help Sebastian get a color printer to bring his art to life!</p>
+      </div>
+    </div>
+    <div class="progress-container">
+      <div class="progress-labels">
+        <span id="pledged-amount">$0 pledged</span>
+        <span class="goal-label" id="goal-label">Goal: $200</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar" style="width:4%">
+          <div class="rocket-icon">🚀</div>
+        </div>
+      </div>
+      <div class="progress-percent" id="progress-percent">0% to launch!</div>
+    </div>
+    <div class="mission-stats">
+      <div class="stat"><span class="stat-num" id="backer-count">0</span><span class="stat-label">Supporters</span></div>
+      <div class="stat"><span class="stat-num" id="art-count">0</span><span class="stat-label">Artworks</span></div>
+      <div class="stat"><span class="stat-num" id="goal-amount">$200</span><span class="stat-label">Goal</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="gallery-section" id="gallery">
+  <div class="section-header">
+    <h2 class="section-title">🌠 The Gallery</h2>
+    <p class="section-sub">Each piece is a window into Sebastian's cosmic imagination</p>
+  </div>
+  <div class="sort-bar">
+    <span class="sort-label">Sort:</span>
+    <button class="sort-btn active" id="sort-newest" onclick="setSort('newest',this)">Newest</button>
+    <button class="sort-btn" id="sort-price-asc" onclick="setSort('price-asc',this)">Price ↑</button>
+    <button class="sort-btn" id="sort-price-desc" onclick="setSort('price-desc',this)">Price ↓</button>
+    <button class="sort-btn" id="sort-available" onclick="setSort('available',this)">Available</button>
+    <button class="sort-btn" id="sort-sold" onclick="setSort('sold',this)">Sold</button>
+  </div>
+  <div class="gallery-grid" id="gallery-grid">
+    <div class="gallery-loading"><div class="loading-spinner"></div><p>Scanning the cosmos…</p></div>
+  </div>
+  <div class="empty-gallery" id="empty-msg" style="display:none">
+    <div class="empty-icon">🌌</div><p>No artworks here — try a different filter!</p>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>🚀 Sebastian's Space Gallery &nbsp;|&nbsp; Made with ❤️ and stardust</p>
+  <div class="footer-links">
+    <a href="index.html">Gallery</a>
+    <a href="about.html">About</a>
+    <a href="admin/index.html" class="admin-link">Admin</a>
+  </div>
+</footer>
+
+<script>
+var FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBJus0fO1qbIyGYjm3xAyno93mLj8B86zg",
+  authDomain:"sebify-87bf5.firebaseapp.com",
+  projectId:"sebify-87bf5",
+  storageBucket:"sebify-87bf5.firebasestorage.app",
+  messagingSenderId:"1028317310503",
+  appId:"1:1028317310503:web:c06cf377b0a110bf2fe802"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+var db = firebase.firestore();
+
+// Stars
+var sc=document.getElementById("stars");
+for(var i=0;i<150;i++){var s=document.createElement("div");s.className="star";s.style.cssText="left:"+Math.random()*100+"%;top:"+Math.random()*100+"%;width:"+(Math.random()*3+1)+"px;height:"+(Math.random()*3+1)+"px;animation-delay:"+Math.random()*3+"s;animation-duration:"+(Math.random()*2+2)+"s";sc.appendChild(s);}
+
+var goal=200, lastStats={totalPledged:0,backerCount:0}, allArts=[], sortMode='newest';
+
+function updateProgress(){
+  var pct=Math.min(100,(lastStats.totalPledged||0)/goal*100);
+  document.getElementById("progress-bar").style.width=Math.max(pct,4)+"%";
+  document.getElementById("progress-percent").textContent=pct>=100?"🎉 Goal reached!":Math.round(pct)+"% to launch!";
+  document.getElementById("pledged-amount").textContent="$"+(lastStats.totalPledged||0).toFixed(0)+" pledged";
+  document.getElementById("backer-count").textContent=lastStats.backerCount||0;
+  document.getElementById("goal-label").textContent="Goal: $"+goal;
+  document.getElementById("goal-amount").textContent="$"+goal;
+}
+
+function setSort(mode, btn){
+  sortMode=mode;
+  document.querySelectorAll(".sort-btn").forEach(function(b){b.classList.remove("active");});
+  btn.classList.add("active");
+  renderArts();
+}
+
+function renderArts(){
+  var arts=allArts.slice();
+  // Filter
+  if(sortMode==='available') arts=arts.filter(function(a){return !a.sold;});
+  else if(sortMode==='sold') arts=arts.filter(function(a){return a.sold;});
+  // Sort
+  if(sortMode==='price-asc') arts.sort(function(a,b){return a.price-b.price;});
+  else if(sortMode==='price-desc') arts.sort(function(a,b){return b.price-a.price;});
+  else arts.sort(function(a,b){return b.id.localeCompare(a.id);});
+
+  var grid=document.getElementById("gallery-grid");
+  var empty=document.getElementById("empty-msg");
+  document.getElementById("art-count").textContent=allArts.length;
+
+  if(!arts.length){
+    grid.innerHTML=""; grid.style.display="none"; empty.style.display="flex"; return;
+  }
+  grid.style.display="grid"; empty.style.display="none";
+  grid.innerHTML=arts.map(function(art,i){
+    var imgHtml=art.imageUrl
+      ?'<img src="'+esc(art.imageUrl)+'" alt="'+esc(art.title)+'" loading="lazy" onclick="openZoom(\''+esc(art.imageUrl)+'\',\''+esc(art.title)+'\')" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/>'
+      :"";
+    var emojiHtml='<div class="art-card-emoji" '+(art.imageUrl?'style="display:none"':"")
+      +' onclick="openZoom(\'\',\''+esc(art.title)+'\',\''+esc(art.emoji||"🎨")+'\')">'+(art.emoji||"🎨")+'</div>';
+    return '<div class="art-card'+(art.sold?" sold":"")+'" style="animation-delay:'+i*0.08+'s">'
+      +'<div class="art-card-image" style="position:relative">'
+      +(art.sold?'<div class="sold-badge">Sold</div>':"")
+      +imgHtml+emojiHtml
+      +(!art.sold?'<div class="art-card-overlay"><a href="checkout.html?id='+art.id+'" class="btn-pledge">🛒 Buy Now</a></div>':"")
+      +'</div>'
+      +'<div class="art-card-body">'
+      +'<h3 class="art-card-title">'+esc(art.title)+'</h3>'
+      +'<p class="art-card-desc">'+esc(art.description)+'</p>'
+      +'<div class="art-card-footer">'
+      +'<span class="art-card-price">'+(art.sold?'<span style="color:#ff8a80;font-size:0.85rem;font-weight:800">SOLD</span>':"$"+art.price)+'</span>'
+      +(art.sold
+        ?'<a href="checkout.html?id='+art.id+'" class="art-card-btn" style="opacity:0.5;pointer-events:none">Sold ✓</a>'
+        :'<a href="checkout.html?id='+art.id+'" class="art-card-btn">Buy ✨</a>')
+      +'</div></div></div>';
+  }).join("");
+}
+
+// Zoom
+function openZoom(url, title, emoji){
+  var modal=document.getElementById("zoom-modal");
+  var content=document.getElementById("zoom-content");
+  document.getElementById("zoom-title").textContent=title||"";
+  if(url){
+    content.innerHTML='<img src="'+esc(url)+'" alt="'+esc(title||"")+'" onclick="event.stopPropagation()"/>';
+  } else {
+    content.innerHTML='<div class="zoom-modal-emoji" onclick="event.stopPropagation()">'+(emoji||"🎨")+'</div>';
+  }
+  modal.classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function closeZoom(){
+  document.getElementById("zoom-modal").classList.remove("open");
+  document.body.style.overflow="";
+}
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeZoom();});
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+db.doc("settings/config").onSnapshot(function(s){if(s.exists&&s.data().goal)goal=s.data().goal;updateProgress();});
+db.doc("stats/global").onSnapshot(function(s){lastStats=s.exists?s.data():{totalPledged:0,backerCount:0};updateProgress();});
+db.collection("artworks").onSnapshot(function(snap){
+  allArts=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+  renderArts();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Buy Artwork 🛒</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">🚀 Sebastian's Art</a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">← Gallery</a>
+    <a href="about.html" class="nav-link">About</a>
+  </div>
+</nav>
+<main class="checkout-page">
+  <div class="checkout-container" id="checkout-container">
+    <div class="gallery-loading"><div class="loading-spinner"></div><p>Loading artwork…</p></div>
+  </div>
+  <div class="success-screen" id="success-screen" style="display:none">
+    <div class="success-rocket">🚀</div>
+    <h1 class="success-title">Purchase Complete!</h1>
+    <p class="success-msg">Thank you for buying Sebastian's art! 🌟<br/>Sebastian will contact you soon to arrange delivery and payment.</p>
+    <div class="success-badge">⭐ Art Collector ⭐</div>
+    <p class="success-progress-msg" id="success-progress-msg"></p>
+    <div class="success-actions">
+      <a href="index.html" class="btn-primary">Back to Gallery 🌌</a>
+      <a href="about.html" class="btn-secondary">Meet Sebastian</a>
+    </div>
+  </div>
+</main>
+<footer class="footer">
+  <p>🚀 Sebastian's Space Gallery &nbsp;|&nbsp; Made with ❤️ and stardust</p>
+</footer>
+<script>
+var FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBJus0fO1qbIyGYjm3xAyno93mLj8B86zg",
+  authDomain:"sebify-87bf5.firebaseapp.com",
+  projectId:"sebify-87bf5",
+  storageBucket:"sebify-87bf5.firebasestorage.app",
+  messagingSenderId:"1028317310503",
+  appId:"1:1028317310503:web:c06cf377b0a110bf2fe802"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+var db = firebase.firestore();
+
+// Stars
+var sc=document.getElementById("stars");
+for(var i=0;i<100;i++){var s=document.createElement("div");s.className="star";s.style.cssText="left:"+Math.random()*100+"%;top:"+Math.random()*100+"%;width:"+(Math.random()*3+1)+"px;height:"+(Math.random()*3+1)+"px;animation-delay:"+Math.random()*3+"s;animation-duration:"+(Math.random()*2+2)+"s";sc.appendChild(s);}
+
+var params=new URLSearchParams(location.search);
+var artId=params.get("id");
+var container=document.getElementById("checkout-container");
+var goal=200;
+db.doc("settings/config").get().then(function(s){if(s.exists&&s.data().goal)goal=s.data().goal;});
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+if(!artId){
+  container.innerHTML='<div class="not-found"><h2>Artwork not found 🌌</h2><a href="index.html" class="btn-primary">Back to Gallery</a></div>';
+} else {
+  db.collection("artworks").doc(artId).get().then(function(snap){
+    if(!snap.exists){
+      container.innerHTML='<div class="not-found"><h2>Artwork not found 🌌</h2><a href="index.html" class="btn-primary">Back to Gallery</a></div>';
+      return;
+    }
+    var art=Object.assign({id:snap.id},snap.data());
+    if(art.sold){
+      container.innerHTML='<div class="not-found" style="text-align:center;padding:60px 24px">'
+        +'<div style="font-size:4rem;margin-bottom:16px">😢</div>'
+        +'<h2 style="font-family:Orbitron,sans-serif;margin-bottom:12px">Already Sold!</h2>'
+        +'<p style="color:var(--text-soft);margin-bottom:28px">Someone already bought "'+esc(art.title)+'". Check the gallery for other available pieces.</p>'
+        +'<a href="index.html" class="btn-primary">Back to Gallery 🌌</a></div>';
+      return;
+    }
+    renderCheckout(art);
+    listenComments(artId);
+  });
+}
+
+function renderCheckout(art){
+  container.innerHTML=
+    '<div class="checkout-card">'
+    +'<div class="checkout-art-preview">'
+    +(art.imageUrl?'<img src="'+esc(art.imageUrl)+'" alt="'+esc(art.title)+'" class="checkout-art-img" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"/>':'')
+    +'<div class="checkout-art-placeholder" '+(art.imageUrl?'style="display:none"':"")+'>'+esc(art.emoji||"🎨")+'</div>'
+    +'</div>'
+    +'<div class="checkout-details">'
+    +'<div class="checkout-badge">🛒 Buy This Artwork</div>'
+    +'<h1 class="checkout-title">'+esc(art.title)+'</h1>'
+    +'<p class="checkout-desc">'+esc(art.description)+'</p>'
+    +'<div class="checkout-price-tag">'
+    +'<span class="price-label">Price</span>'
+    +'<span class="price-value">$'+art.price+'</span>'
+    +'</div>'
+    +'<div class="checkout-note"><span>🌟</span>'
+    +'<p>No payment is collected here. By clicking Buy, you commit to purchasing this artwork. Sebastian will contact you to arrange payment and delivery!</p>'
+    +'</div>'
+    +'<div class="checkout-form">'
+    +'<input type="text" id="buyer-name" class="form-input" placeholder="Your name *" maxlength="50"/>'
+    +'<input type="text" id="buyer-contact" class="form-input" placeholder="Your email or phone number *" maxlength="100"/>'
+    +'<textarea id="buyer-msg" class="form-input form-textarea" placeholder="Any message for Sebastian… 🌟" maxlength="200" rows="3"></textarea>'
+    +'<button class="btn-primary btn-full" id="buy-btn">🛒 Buy for $'+art.price+'</button>'
+    +'</div></div></div>'
+    +'<div class="comments-section">'
+    +'<h2 class="comments-title">💬 Buyer Messages</h2>'
+    +'<p class="comments-sub">Messages from people who bought this artwork</p>'
+    +'<div id="comments-list" class="comments-list">'
+    +'<div class="gallery-loading"><div class="loading-spinner"></div><p>Loading…</p></div>'
+    +'</div></div>';
+
+  document.getElementById("buy-btn").addEventListener("click", function(){
+    completePurchase(art.id, art.price, art.title);
+  });
+}
+
+function listenComments(artId){
+  db.collection("pledges").onSnapshot(function(snap){
+    var pledges=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+      .filter(function(p){return p.artId===artId;})
+      .sort(function(a,b){return b.id.localeCompare(a.id);});
+    var list=document.getElementById("comments-list");
+    if(!list)return;
+    if(!pledges.length){list.innerHTML='<div class="empty-comments">No messages yet — be the first! 🚀</div>';return;}
+    list.innerHTML=pledges.map(function(p){
+      var date="";
+      if(p.createdAt&&p.createdAt.toDate)date=p.createdAt.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+      return '<div class="comment-card">'
+        +'<div class="comment-avatar">'+(p.name||"?")[0].toUpperCase()+'</div>'
+        +'<div class="comment-body">'
+        +'<div class="comment-header">'
+        +'<span class="comment-name">'+esc(p.name||"Someone")+'</span>'
+        +'<span class="comment-amount">bought for $'+p.amount+'</span>'
+        +'<span class="comment-date">'+date+'</span>'
+        +'</div>'
+        +(p.comment?'<p class="comment-text">'+esc(p.comment)+'</p>':'<p class="comment-text comment-no-msg"><em>No message left</em></p>')
+        +'</div></div>';
+    }).join("");
+  });
+}
+
+function completePurchase(artId, price, artTitle){
+  var btn=document.getElementById("buy-btn");
+  var name=document.getElementById("buyer-name").value.trim();
+  var contact=document.getElementById("buyer-contact").value.trim();
+  var msg=document.getElementById("buyer-msg").value.trim();
+  if(!name){alert("Please enter your name!");return;}
+  if(!contact){alert("Please enter your email or phone so Sebastian can reach you!");return;}
+  btn.disabled=true; btn.textContent="Processing…";
+
+  // Mark artwork as sold
+  db.collection("artworks").doc(artId).update({
+    sold:true, soldTo:name, soldContact:contact,
+    soldAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){
+    // Record purchase
+    return db.collection("pledges").add({
+      artId:artId, artTitle:artTitle, amount:price,
+      name:name, contact:contact, comment:msg,
+      delivered:false,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }).then(function(){
+    // Update stats
+    return db.doc("stats/global").get();
+  }).then(function(statsSnap){
+    if(!statsSnap.exists){
+      return db.doc("stats/global").set({totalPledged:price,backerCount:1});
+    } else {
+      return db.doc("stats/global").update({
+        totalPledged:firebase.firestore.FieldValue.increment(price),
+        backerCount:firebase.firestore.FieldValue.increment(1)
+      });
+    }
+  }).then(function(){
+    return db.doc("stats/global").get();
+  }).then(function(updated){
+    var pct=Math.min(100,Math.round(((updated.data().totalPledged||0)/goal)*100));
+    document.getElementById("success-progress-msg").textContent=
+      "The mission is now "+pct+"% funded! ($"+(updated.data().totalPledged||0).toFixed(0)+" of $"+goal+")";
+    container.style.display="none";
+    document.getElementById("success-screen").style.display="flex";
+  }).catch(function(err){
+    console.error(err);
+    btn.disabled=false; btn.textContent="🛒 Buy for $"+price;
+    alert("Something went wrong: "+err.message);
+  });
+}
+</script>
+</body>
+</html>
