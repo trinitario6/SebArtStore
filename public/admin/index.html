@@ -94,6 +94,23 @@
       <h2 class="admin-section-title">👨‍🚀 About Me Page</h2>
       <p class="admin-section-desc">Edit what visitors see on the About page.</p>
       <div class="add-art-form">
+        <!-- Artist Photo -->
+        <div class="form-group">
+          <label class="form-label">Artist Photo</label>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div class="upload-area" id="artist-photo-area" onclick="document.getElementById('artist-photo-input').click()" style="width:140px;height:140px;border-radius:50%;flex-shrink:0;overflow:hidden;padding:0">
+              <input type="file" id="artist-photo-input" accept="image/*" style="display:none"/>
+              <div id="artist-photo-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;color:var(--text-soft);font-size:0.8rem;text-align:center;padding:12px">
+                <span style="font-size:2rem">👨‍🚀</span><span>Upload photo</span>
+              </div>
+              <img id="artist-photo-preview" src="" alt="Artist" style="display:none;width:100%;height:100%;object-fit:cover"/>
+            </div>
+            <div>
+              <p style="color:var(--text-soft);font-size:0.88rem;line-height:1.6">Upload a photo of Sebastian to show on the About page.<br/>Replaces the default astronaut emoji.</p>
+              <button class="btn-secondary btn-sm" id="remove-artist-photo-btn" style="margin-top:10px;display:none">✕ Remove Photo</button>
+            </div>
+          </div>
+        </div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">Artist Name</label><input type="text" id="about-name" class="form-input" placeholder="Sebastian" maxlength="40"/></div>
           <div class="form-group"><label class="form-label">Tagline</label><input type="text" id="about-tagline" class="form-input" placeholder="Space Explorer · Dreamer · Artist" maxlength="80"/></div>
@@ -213,19 +230,27 @@ document.getElementById("logout-btn").addEventListener("click", function(){
 });
 
 function bootAdmin(){
-  // Live stats
+  // Live stats — recalculates when either stats OR goal changes
+  var lastTotalPledged = 0;
+
+  function refreshStats(){
+    var pct = Math.min(100, Math.round((lastTotalPledged / currentGoal) * 100));
+    document.getElementById("a-earned").textContent = "$" + lastTotalPledged.toFixed(0);
+    document.getElementById("a-progress").textContent = pct + "%";
+  }
+
   db.doc("stats/global").onSnapshot(function(snap){
-    var d=snap.exists?snap.data():{totalPledged:0,backerCount:0};
-    var pct=Math.min(100,Math.round(((d.totalPledged||0)/currentGoal)*100));
-    document.getElementById("a-earned").textContent="$"+(d.totalPledged||0).toFixed(0);
-    document.getElementById("a-progress").textContent=pct+"%";
+    var d = snap.exists ? snap.data() : {totalPledged:0, backerCount:0};
+    lastTotalPledged = d.totalPledged || 0;
+    refreshStats();
   });
 
-  // Live goal
+  // Live goal — also refreshes % when goal changes
   db.doc("settings/config").onSnapshot(function(snap){
-    currentGoal=(snap.exists&&snap.data().goal)?snap.data().goal:GOAL_DEFAULT;
-    document.getElementById("goal-current-display").textContent="$"+currentGoal;
-    document.getElementById("goal-input").value=currentGoal;
+    currentGoal = (snap.exists && snap.data().goal) ? snap.data().goal : GOAL_DEFAULT;
+    document.getElementById("goal-current-display").textContent = "$" + currentGoal;
+    document.getElementById("goal-input").value = currentGoal;
+    refreshStats();
   });
 
   // Live artworks
@@ -349,6 +374,13 @@ function populateAboutForm(d){
   document.getElementById("about-thankyou").value=d.thankYou||"";
   document.getElementById("about-sig").value=d.signature||"";
   renderCardEditors((d.cards&&d.cards.length===4)?d.cards:ABOUT_DEFAULTS.cards);
+  // Show existing photo if saved
+  if(d.artistPhotoUrl){
+    document.getElementById("artist-photo-placeholder").style.display="none";
+    var prev=document.getElementById("artist-photo-preview");
+    prev.src=d.artistPhotoUrl; prev.style.display="block";
+    document.getElementById("remove-artist-photo-btn").style.display="inline-block";
+  }
 }
 
 function getCardValues(){
@@ -359,21 +391,68 @@ function getCardValues(){
   };});
 }
 
+// Artist photo upload
+var artistPhotoFile = null;
+var artistPhotoRemoved = false;
+
+document.getElementById("artist-photo-input").addEventListener("change", function(){
+  var file=this.files[0]; if(!file)return;
+  artistPhotoFile=file;
+  artistPhotoRemoved=false;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    document.getElementById("artist-photo-placeholder").style.display="none";
+    var prev=document.getElementById("artist-photo-preview");
+    prev.src=e.target.result; prev.style.display="block";
+    document.getElementById("remove-artist-photo-btn").style.display="inline-block";
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById("remove-artist-photo-btn").addEventListener("click", function(){
+  artistPhotoFile=null; artistPhotoRemoved=true;
+  document.getElementById("artist-photo-preview").style.display="none";
+  document.getElementById("artist-photo-placeholder").style.display="flex";
+  document.getElementById("remove-artist-photo-btn").style.display="none";
+  document.getElementById("artist-photo-input").value="";
+});
+
 document.getElementById("save-about-btn").addEventListener("click", function(){
   var btn=document.getElementById("save-about-btn");
   btn.disabled=true; btn.textContent="Saving…";
-  var data={
-    name:document.getElementById("about-name").value.trim()||ABOUT_DEFAULTS.name,
-    tagline:document.getElementById("about-tagline").value.trim()||ABOUT_DEFAULTS.tagline,
-    missionText:document.getElementById("about-mission-text").value.trim()||ABOUT_DEFAULTS.missionText,
-    thankYou:document.getElementById("about-thankyou").value.trim()||ABOUT_DEFAULTS.thankYou,
-    signature:document.getElementById("about-sig").value.trim()||ABOUT_DEFAULTS.signature,
-    cards:getCardValues()
-  };
-  db.doc("settings/about").set(data)
-    .then(function(){showMsg("about-msg","🌟 About page updated!","success");})
-    .catch(function(e){showMsg("about-msg","Error: "+e.message,"error");})
-    .finally(function(){btn.disabled=false; btn.textContent="🌟 Save About Page";});
+
+  function doSave(photoUrl){
+    var data={
+      name:document.getElementById("about-name").value.trim()||ABOUT_DEFAULTS.name,
+      tagline:document.getElementById("about-tagline").value.trim()||ABOUT_DEFAULTS.tagline,
+      missionText:document.getElementById("about-mission-text").value.trim()||ABOUT_DEFAULTS.missionText,
+      thankYou:document.getElementById("about-thankyou").value.trim()||ABOUT_DEFAULTS.thankYou,
+      signature:document.getElementById("about-sig").value.trim()||ABOUT_DEFAULTS.signature,
+      cards:getCardValues(),
+      artistPhotoUrl: photoUrl
+    };
+    db.doc("settings/about").set(data)
+      .then(function(){showMsg("about-msg","🌟 About page updated!","success");artistPhotoFile=null;artistPhotoRemoved=false;})
+      .catch(function(e){showMsg("about-msg","Error: "+e.message,"error");})
+      .finally(function(){btn.disabled=false; btn.textContent="🌟 Save About Page";});
+  }
+
+  if(artistPhotoFile){
+    btn.textContent="📸 Uploading photo…";
+    var path="artist/photo_"+Date.now()+".jpg";
+    storage.ref(path).put(artistPhotoFile,{contentType:artistPhotoFile.type})
+      .then(function(snap){return snap.ref.getDownloadURL();})
+      .then(function(url){doSave(url);})
+      .catch(function(e){showMsg("about-msg","Photo upload failed: "+e.message,"error");btn.disabled=false;btn.textContent="🌟 Save About Page";});
+  } else if(artistPhotoRemoved){
+    doSave("");
+  } else {
+    // Keep existing — re-read current value
+    db.doc("settings/about").get().then(function(snap){
+      var existing=(snap.exists&&snap.data().artistPhotoUrl)||"";
+      doSave(existing);
+    }).catch(function(){doSave("");});
+  }
 });
 
 // Image preview
